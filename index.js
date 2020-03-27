@@ -1,6 +1,11 @@
-const canvas = document.querySelector("canvas");
-const video  = document.querySelector("#local");
+const canvas	= document.querySelector("canvas");
+const offscreen = canvas.transferControlToOffscreen ();
+const video	= document.querySelector("#local");
+const worker	= new Worker ("worker.js");
 
+
+//Send offsscreen canvas to worker
+worker.postMessage ({canvas: offscreen}, [offscreen]);
 
 document.querySelector ("button").onclick = async ()=> {
 	
@@ -20,15 +25,17 @@ document.querySelector ("button").onclick = async ()=> {
 
 	let last = 0;
 	let count = 0;
+
 	if (!video.requestAnimationFrame)
 		video.requestAnimationFrame = (func) => {
-			return setTimeout(()=>{
+			return requestAnimationFrame(()=>{
 				func(new Date().getTime(), {
 					width   : video.videoWidth,
 					height	: video.videoHeight
 				})
-			},33);
+			});
 		}
+	
 	const display = async (time,metadata)=>{
 		if (time-last>1000)
 		{
@@ -37,28 +44,14 @@ document.querySelector ("button").onclick = async ()=> {
 			count = 0;
 		}
 		
-		video.requestAnimationFrame(display);
-		
 		if (metadata.width && metadata.height)
 		{
 			count++;
-			canvas.width = metadata.width;
-			canvas.height = metadata.height;
-			if (true)
-			{
-				//ImageBitmap
-				const image = await createImageBitmap(video, 0, 0,  metadata.width, metadata.height);
-				const context = canvas.getContext('bitmaprenderer');
-				context.transferFromImageBitmap(image);
-			} else {
-				//drawImage
-				const context = canvas.getContext('2d');
-				context.drawImage(video,0,0,metadata.width,metadata.height);
-			}
-			videoTrack.requestFrame();
+			createImageBitmap(video, 0, 0,  metadata.width, metadata.height)
+				.then(image=>worker.postMessage ({image: image, width: metadata.width, height: metadata.height}, [image]));
 		}
-
 		
+		video.requestAnimationFrame(display);
 	};
 
 	video.requestAnimationFrame(display);
